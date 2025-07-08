@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="board">
+
+	<!-- 로그인 아이디 비밀번호 일치 확인 -->
+	<select id="checkLogin" parameterType="userVo" resultType="int">
+		SELECT COUNT(*) COUNT
+		FROM B_USER
+		WHERE user_id = #{user_id} AND pass = #{pass}
+	</select>
+
+	<!-- 유저 정보 -->
+	<select id="selectUser" parameterType="String"
+		resultType="userVo">
+		SELECT *
+		FROM b_user
+		WHERE user_id = #{user_id}
+	</select>
+
+	<!-- 게시판등록 -->
+	<insert id="insertBoard" parameterType="boardVo">
+		INSERT INTO
+		board(BOARD_NO
+		,BOARD_NM
+		,CHECK_ON)
+		VALUES(board_seq.nextVal
+		,#{board_nm}
+		,#{check_on})
+	</insert>
+
+	<!-- 게시판 전체목록조회(회원용) -->
+	<select id="selectBoardList" resultType="boardVo">
+		SELECT board_no,
+		board_nm, check_on
+		FROM board
+		WHERE check_on = 1
+		ORDER BY board_no
+	</select>
+	
+	<!-- 게시판 전체목록조회(관리자용)-->
+	<select id="boardListView" resultType="boardVo">
+		SELECT board_no,
+		board_nm, check_on
+		FROM board
+		ORDER BY board_no
+	</select>
+	
+	<!-- 게시판 활성, 비활성 -->
+	<update id="updateBoard" parameterType="boardVo">
+		UPDATE board SET check_on = #{check_on}
+		WHERE board_no = #{board_no}
+	</update>
+
+	<!-- 사용자 조회 -->
+	<select id="selectUserList" resultType="userVo">
+		SELECT *
+		FROM b_user
+	</select>
+
+	<!-- 게시글 등록 -->
+	<insert id="insertPost" parameterType="postVo">
+		INSERT INTO
+		post(POST_NO
+		,TITLE
+		,CONT
+		,REG_DT
+		,VIEWS
+		,DEL_CODE
+		,BOARD_NO
+		,USER_ID
+		,PRE_POST_NO)
+		VALUES(post_seq.nextVal
+		,#{title }
+		,#{cont }
+		,sysdate
+		,0
+		,1
+		,#{board_no }
+		,#{user_id}
+		,null)
+	</insert>
+
+	<!-- 게시글 전체조회 -->
+	<select id="selectPostList" parameterType="pageVo" resultType="postVo">
+		SELECT *
+        FROM (
+        SELECT DECODE(del_code,1,(DECODE(pre_post_no, null, title, LPAD((' '), 8*(LEVEL-1)) || title)),'삭제된 게시글입니다.') title,post_no,cont,reg_dt,views,del_code,board_no,user_id,pre_post_no,ROWNUM rn, LEVEL postLevel
+		FROM
+            (SELECT ROWNUM rn,a.*
+            FROM
+                (SELECT title, post_no,cont,reg_dt,views,del_code,board_no,user_id,pre_post_no
+                FROM post
+                WHERE board_no = #{board_no} 
+                <choose>
+                	<when test="searchCheck == 0">
+                		AND title LIKE '%' || #{searchStr} || '%'
+                	</when>
+                	<when test="searchCheck == 1">
+                		AND user_id LIKE '%' || #{searchStr} || '%'
+                	</when>
+                </choose>
+                ORDER BY post_no DESC
+            ) a
+            ORDER by rownum
+            )
+		START WITH pre_post_no IS NULL
+		CONNECT BY PRIOR post_no = pre_post_no
+		ORDER SIBLINGS BY reg_dt DESC)
+		WHERE rn BETWEEN (#{page}-1) * #{pageSize} + 1 AND #{page} * #{pageSize}
+		<!-- SELECT LPAD((' '), 8*(LEVEL-1)) || title title, -->
+<!-- 		SELECT DECODE(pre_post_no, null, title, LPAD((' '), 8*(LEVEL-1)) || -->
+<!-- 		'->' || title) title, -->
+<!-- 		post_no, -->
+<!-- 		cont, -->
+<!-- 		reg_dt, -->
+<!-- 		views, -->
+<!-- 		del_code, -->
+<!-- 		board_no, -->
+<!-- 		user_id, -->
+<!-- 		pre_post_no, -->
+<!-- 		ROWNUM rn, -->
+<!-- 		LEVEL workLevel -->
+<!-- 		FROM -->
+<!-- 		(SELECT ROWNUM rn, -->
+<!-- 		a.* -->
+<!-- 		FROM -->
+<!-- 		(SELECT -->
+<!-- 		title, -->
+<!-- 		post_no, -->
+<!-- 		cont, -->
+<!-- 		reg_dt, -->
+<!-- 		views, -->
+<!-- 		del_code, -->
+<!-- 		board_no, -->
+<!-- 		user_id, -->
+<!-- 		pre_post_no -->
+<!-- 		FROM post -->
+<!-- 		WHERE board_no = #{board_no} -->
+<!-- 		ORDER BY -->
+<!-- 		post_no DESC -->
+<!-- 		) a -->
+<!-- 		) -->
+<!-- 		WHERE rn BETWEEN (#{page}-1) * #{pageSize} + 1 AND -->
+<!-- 		#{page} * #{pageSize} -->
+<!-- 		START WITH pre_post_no IS NULL -->
+<!-- 		CONNECT BY PRIOR -->
+<!-- 		post_no = pre_post_no -->
+<!-- 		ORDER SIBLINGS BY reg_dt ASC -->
+	</select>
+
+	<!-- 게시글 전체개수 -->
+	<select id="postListCnt" resultType="int" parameterType="pageVo">
+		SELECT
+		COUNT(*)
+		FROM post
+		WHERE board_no = #{board_no}
+		<choose>
+        	<when test="searchCheck == 0">
+        		AND title LIKE '%' || #{searchStr} || '%'
+        	</when>
+        	<when test="searchCheck == 1">
+        		AND user_id LIKE '%' || #{searchStr} || '%'
+        	</when>
+        </choose>
+	</select>
+
+	<!-- 게시글 조회 -->
+	<select id="postView" parameterType="int" resultType="postVo">
+		SELECT
+		post_no
+		,title
+		,cont
+		,reg_dt
+		,views
+		,del_code
+		,board_no
+		,user_id
+		,pre_post_no
+		FROM post
+		WHERE post_no = #{post_no}
+	</select>
+
+	<!-- 게시글 조회수 증가 -->
+	<update id="viewsPlus" parameterType="int">
+		UPDATE post SET views =
+		views + 1
+		WHERE post_no = #{post_no}
+	</update>
+
+	<!-- 답글등록 -->
+	<insert id="insertReply" parameterType="postVo">
+		INSERT INTO
+		post(POST_NO
+		,TITLE
+		,CONT
+		,REG_DT
+		,VIEWS
+		,DEL_CODE
+		,BOARD_NO
+		,USER_ID
+		,PRE_POST_NO)
+		VALUES(post_seq.nextVal
+		,#{title }
+		,#{cont }
+		,sysdate
+		,0
+		,1
+		,#{board_no }
+		,#{user_id}
+		,#{pre_post_no})
+	</insert>
+
+	<!-- 유저 등록 -->
+	<insert id="registUser" parameterType="userVo">
+		INSERT
+
+		INTO b_user
+		(USER_ID
+		,PASS
+		,USER_NAME
+		,AGE
+		,GENDER
+		,ADMIN_CODE)
+		
+		VALUES
+
+		(#{user_id }
+		,#{pass }
+		,#{user_name}
+		,#{age }
+		,#{gender }
+		,0)
+	</insert>
+
+	<!-- 아이디 중복확인 -->
+	<select id="checkUserId" parameterType="String" resultType="int">
+		SELECT COUNT(*)
+		FROM b_user
+		WHERE user_id = #{user_id}
+	</select>
+
+	<!-- 파일업로드 -->
+	<insert id="insertFile" parameterType="fileVo">
+		INSERT INTO ATTACH_FILE
+		(FILE_NO
+		,FILE_NM
+		,FILE_ROUTE
+		,DEL_CODE
+		,POST_NO)
+		
+		VALUES
+		(file_seq.nextVal
+		,#{file_nm }
+		,#{file_route}
+		,1
+		,#{post_no})
+	</insert>
+
+	<select id="maxPostno" resultType="int">
+		SELECT MAX(post_no)
+		FROM post
+	</select>
+	
+	<!-- 게시글 삭제 -->
+	<update id="deletePost" parameterType="int">
+		UPDATE post SET del_code = 0
+		WHERE post_no = #{post_no}
+	</update>
+
+	<!-- 게시글 수정 -->
+	<update id="updatePost" parameterType="postVo">
+		UPDATE post SET title = #{title}, cont = #{cont}
+		WHERE post_no = #{post_no}
+	</update>
+
+	<!-- 댓글 등록 -->
+	<insert id="insertComment" parameterType="commentsVo">
+		INSERT INTO
+		comments
+		(COM_NO
+		,COM_CONT
+		,REG_DT
+		,DEL_CODE
+		,POST_NO
+		,USER_ID)
+		VALUES
+		(comments_seq.nextVal
+		,#{com_cont}
+		,SYSDATE
+		,1
+		,#{post_no }
+		,#{user_id})
+	</insert>
+	
+	<!-- 댓글조회 -->
+	<select id="selectCommentsList" parameterType="int" resultType="commentsVo">
+		SELECT 
+		com_no
+		,com_cont
+		,reg_dt
+		,del_code
+		,post_no
+		,user_id
+		FROM comments
+		WHERE post_no = #{post_no} AND del_code = 1
+	</select>
+
+	<!-- 댓글삭제 -->
+	<update id="deleteComments" parameterType="int">
+		UPDATE comments SET DEL_CODE = 0
+		WHERE com_no = #{com_no}
+	</update>
+	<!-- 첨부파일 전체조회 -->
+	<select id="selectFileList" parameterType="int" resultType="fileVo">
+		SELECT 
+		file_no
+		,file_nm
+		,file_route
+		,del_code
+		,post_no
+		FROM attach_file
+		WHERE post_no = #{post_no} AND del_code = 1
+	</select>
+	
+	<!-- 첨부파일 개별조회 -->
+	<select id="selectFile" parameterType="int" resultType="fileVo">
+		SELECT
+		file_no
+		,file_nm
+		,file_route
+		,del_code
+		,post_no
+		FROM attach_file
+		WHERE file_no = #{file_no}
+	</select>
+	
+	<!-- 파일 삭제 -->
+	<update id="deleteFile" parameterType="int">
+		UPDATE attach_file SET del_code = 0
+		WHERE file_no = #{file_no}
+	</update>
+	
+
+	<!-- 게시글 조건검색 -->
+<!-- 	<select id="searchPostList" parameterType="pageVo" resultType="postVo"> -->
+<!-- 		SELECT * -->
+<!--         FROM ( -->
+<!--         SELECT DECODE(del_code,1,(DECODE(pre_post_no, null, title, LPAD((' '), 8*(LEVEL-1)) ||'->' || title)),'삭제된 게시글입니다.') title,post_no,cont,reg_dt,views,del_code,board_no,user_id,pre_post_no,ROWNUM rn, LEVEL workLevel -->
+<!-- 		FROM -->
+<!--             (SELECT ROWNUM rn,a.* -->
+<!--             FROM -->
+<!--                 (SELECT title, post_no,cont,reg_dt,views,del_code,board_no,user_id,pre_post_no -->
+<!--                 FROM post -->
+<!--                 WHERE board_no = #{board_no} AND -->
+<!--                 <choose> -->
+<!--                 	<when test="#{searchCheck} == 0"> -->
+<!--                 		title = '%' || #{searchStr} || '%' -->
+<!--                 	</when> -->
+<!--                 	<when test="#{searchCheck} == 1"> -->
+<!--                 		user_id = '%' || #{searchStr} || '%' -->
+<!--                 	</when> -->
+<!--                 </choose> -->
+<!--                 ORDER BY post_no DESC -->
+<!--             ) a -->
+<!--             ORDER by rownum -->
+<!--             ) -->
+<!-- 		START WITH pre_post_no IS NULL -->
+<!-- 		CONNECT BY PRIOR post_no = pre_post_no -->
+<!-- 		ORDER SIBLINGS BY reg_dt DESC) -->
+<!-- 		WHERE rn BETWEEN (#{page}-1) * #{pageSize} + 1 AND #{page} * #{pageSize} -->
+<!-- 	</select> -->
+
+</mapper>
+
+
+
+
+
+
